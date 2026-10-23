@@ -17,6 +17,7 @@ from .data import (Rejections, finite_number, identifier, location, new_trips, r
                    trip_summary, vehicle_id)
 from .economy import EVEconomy
 from .ranges import RANGE_PREFIX, RangeCache
+from .geocode import ReverseGeocoder
 from .statistics import TripStatistics
 from .trips import TripTracker
 
@@ -46,6 +47,9 @@ class PleosCoordinator(DataUpdateCoordinator):
         self.fetched_trips = []  # [(car_id, endpoint, data)] returned in the running poll.
         self.ranges = RangeCache(hass, entry.entry_id)
         self.economy = EVEconomy(hass, entry.entry_id)
+        self.geocoder = ReverseGeocoder(
+            client.session, self.options["geocoder_url"], self.options["geocoder_key"]
+        )
         self.last_successful_poll = None
         self.using_last_data = False
 
@@ -131,6 +135,8 @@ class PleosCoordinator(DataUpdateCoordinator):
                 self._apply_trips(car_id, car, endpoint, data, source, pending)
             else:
                 self._apply_snapshot(car_id, car, endpoint, data, source)
+        if self.options["location"] and self.options["reverse_geocode"]:
+            await self.geocoder.apply(car)
         self._retain_measurements(car_id, car)
         if alternate := car["readings"].get("powertrains_batteries_main_remainratio"):
             alternate.pop("entity_category", None)
